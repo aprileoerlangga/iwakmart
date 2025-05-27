@@ -20,9 +20,7 @@ class OrderController extends Controller
 {
     /**
      * Mendapatkan daftar pesanan pengguna.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * PERBAIKAN: Eager loading yang konsisten
      */
     public function index(Request $request)
     {
@@ -30,12 +28,10 @@ class OrderController extends Controller
         
         $query = Order::where('user_id', $user->id);
         
-        // Filter berdasarkan status
         if ($request->has('status') && !empty($request->status)) {
             $query->where('status', $request->status);
         }
         
-        // Pengurutan
         $sortField = $request->sort_by ?? 'created_at';
         $sortDirection = $request->sort_direction ?? 'desc';
         
@@ -45,8 +41,12 @@ class OrderController extends Controller
             $query->orderBy($sortField, $sortDirection);
         }
         
-        $orders = $query->with(['orderItems', 'orderItems.product', 'address'])
-                        ->paginate($request->per_page ?? 10);
+        // PERBAIKAN: Eager loading yang benar
+        $orders = $query->with([
+            'orderItems:pesanan_id,produk_id,nama_produk,jumlah,harga,subtotal',
+            'orderItems.product:id,nama,gambar,jenis_ikan',
+            'address:id,nama_penerima,telepon,alamat_lengkap,provinsi,kota,kecamatan,kode_pos'
+        ])->paginate($request->per_page ?? 10);
         
         return response()->json([
             'success' => true,
@@ -56,16 +56,12 @@ class OrderController extends Controller
 
     /**
      * Menampilkan detail pesanan.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Order  $order
-     * @return \Illuminate\Http\Response
+     * PERBAIKAN: Eager loading yang lebih spesifik
      */
     public function show(Request $request, Order $order)
     {
         $user = $request->user();
         
-        // Pastikan pesanan milik pengguna atau penjual yang terkait
         if ($user->id !== $order->user_id && !$order->orderItems->contains('penjual_id', $user->id)) {
             return response()->json([
                 'success' => false,
@@ -73,19 +69,78 @@ class OrderController extends Controller
             ], 404);
         }
         
+        // PERBAIKAN: Load relasi dengan select spesifik
         $order->load([
-            'user', 
-            'address', 
-            'orderItems', 
-            'orderItems.product', 
-            'orderItems.seller',
-            'payments'
+            'user:id,name,email,phone', 
+            'address:id,nama_penerima,telepon,alamat_lengkap,provinsi,kota,kecamatan,kode_pos,alamat_utama', 
+            'orderItems:id,pesanan_id,produk_id,penjual_id,nama_produk,jumlah,harga,subtotal', 
+            'orderItems.product:id,nama,gambar,jenis_ikan',
+            'orderItems.seller:id,name'
         ]);
         
         return response()->json([
             'success' => true,
             'data' => new OrderResource($order)
         ]);
+    }
+
+    /**
+     * PERBAIKAN: Method untuk mengambil items pesanan secara terpisah
+     */
+    public function items($id)
+    {
+        try {
+            $user = request()->user();
+            
+            $order = Order::where('id', $id)
+                         ->where('user_id', $user->id)
+                         ->first();
+
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pesanan tidak ditemukan'
+                ], 404);
+            }
+
+            $orderItems = OrderItem::where('pesanan_id', $order->id)
+                                  ->with([
+                                      'product:id,nama,deskripsi,gambar,jenis_ikan,spesies_ikan'
+                                  ])
+                                  ->get();
+
+            $formattedItems = $orderItems->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'produk_id' => $item->produk_id,
+                    'nama_produk' => $item->nama_produk,
+                    'jumlah' => $item->jumlah,
+                    'harga' => $item->harga,
+                    'subtotal' => $item->subtotal,
+                    'harga_formatted' => 'Rp ' . number_format($item->harga, 0, ',', '.'),
+                    'subtotal_formatted' => 'Rp ' . number_format($item->subtotal, 0, ',', '.'),
+                    'produk' => $item->product ? [
+                        'id' => $item->product->id,
+                        'nama' => $item->product->nama,
+                        'deskripsi' => $item->product->deskripsi,
+                        'gambar' => $item->product->gambar,
+                        'jenis_ikan' => $item->product->jenis_ikan,
+                        'spesies_ikan' => $item->product->spesies_ikan,
+                    ] : null
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedItems
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

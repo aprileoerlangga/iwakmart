@@ -7,6 +7,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Pages\EditRecord;
 use App\Models\Order;
+use Filament\Notifications\Notification;
 
 class EditOrder extends EditRecord
 {
@@ -27,14 +28,18 @@ class EditOrder extends EditRecord
                 ])
                 ->action(function (array $data): void {
                     $this->record->updateStatus($data['status']);
-                    $this->notify('success', 'Status pesanan berhasil diperbarui.');
+
+                    Notification::make()
+                        ->title('Status pesanan berhasil diubah')
+                        ->success()
+                        ->send();
                 }),
                 
-            Actions\Action::make('download_invoice')
-                ->label('Download Invoice')
-                ->icon('heroicon-o-document-arrow-down')
-                ->url(fn () => route('orders.invoice.download', $this->record))
-                ->openUrlInNewTab(),
+            // Actions\Action::make('download_invoice')
+            //     ->label('Download Invoice')
+            //     ->icon('heroicon-o-document-arrow-down')
+            //     ->url(fn () => route('orders.invoice.download', $this->record))
+            //     ->openUrlInNewTab(),
         ];
     }
 

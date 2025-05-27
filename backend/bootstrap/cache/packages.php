@@ -20,6 +20,13 @@
       0 => 'BladeUI\\Icons\\BladeIconsServiceProvider',
     ),
   ),
+  'dedoc/scramble' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'Dedoc\\Scramble\\ScrambleServiceProvider',
+    ),
+  ),
   'filament/actions' => 
   array (
     'providers' => 
@@ -143,6 +150,18 @@
       0 => 'Termwind\\Laravel\\TermwindServiceProvider',
     ),
   ),
+  'rupadana/filament-api-service' => 
+  array (
+    'aliases' => 
+    array (
+      'ApiService' => 'Rupadana\\ApiService\\Facades\\ApiService',
+    ),
+    'providers' => 
+    array (
+      0 => 'Rupadana\\ApiService\\ApiServiceServiceProvider',
+      1 => 'Rupadana\\ApiService\\AuthServiceProvider',
+    ),
+  ),
   'ryangjchandler/blade-capture-directive' => 
   array (
     'aliases' => 
@@ -166,6 +185,13 @@
     'providers' => 
     array (
       0 => 'Spatie\\Permission\\PermissionServiceProvider',
+    ),
+  ),
+  'spatie/laravel-query-builder' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'Spatie\\QueryBuilder\\QueryBuilderServiceProvider',
     ),
   ),
 );

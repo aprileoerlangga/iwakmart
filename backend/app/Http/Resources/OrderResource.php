@@ -35,11 +35,9 @@ class OrderResource extends JsonResource
             'catatan' => $this->catatan,
             'tanggal_pesan' => $this->created_at->format('Y-m-d H:i:s'),
             'tanggal_pesan_formatted' => $this->created_at->translatedFormat('d F Y H:i'),
-            'tanggal_selesai' => $this->tanggal_selesai ? $this->tanggal_selesai->format('Y-m-d H:i:s') : null,
-            'tanggal_selesai_formatted' => $this->tanggal_selesai ? $this->tanggal_selesai->translatedFormat('d F Y H:i') : null,
             
-            // User/Pembeli
-            'user' => $this->whenLoaded('user', function() {
+            // User/Pembeli - PERBAIKAN: Cek relasi loaded
+            'user' => $this->when($this->relationLoaded('user'), function() {
                 return [
                     'id' => $this->user->id,
                     'name' => $this->user->name,
@@ -48,8 +46,8 @@ class OrderResource extends JsonResource
                 ];
             }),
             
-            // Alamat pengiriman
-            'address' => $this->whenLoaded('address', function() {
+            // Alamat pengiriman - PERBAIKAN: Cek relasi loaded
+            'address' => $this->when($this->relationLoaded('address'), function() {
                 return [
                     'id' => $this->address->id,
                     'nama_penerima' => $this->address->nama_penerima,
@@ -58,17 +56,17 @@ class OrderResource extends JsonResource
                     'provinsi' => $this->address->provinsi,
                     'kota' => $this->address->kota,
                     'kecamatan' => $this->address->kecamatan,
-                    'kelurahan' => $this->address->kelurahan,
+                    'kelurahan' => $this->address->kelurahan ?? null,
                     'kode_pos' => $this->address->kode_pos,
-                    'alamat_utama' => (bool) $this->address->alamat_utama,
-                    'catatan_alamat' => $this->address->catatan_alamat
+                    'alamat_utama' => (bool) ($this->address->alamat_utama ?? false),
+                    'catatan_alamat' => $this->address->catatan_alamat ?? null
                 ];
             }),
             
-            // Order items
-            'items' => $this->whenLoaded('orderItems', function() {
+            // Order items - PERBAIKAN: Hindari nested whenLoaded
+            'items' => $this->when($this->relationLoaded('orderItems'), function() {
                 return $this->orderItems->map(function($item) {
-                    return [
+                    $itemData = [
                         'id' => $item->id,
                         'product_id' => $item->produk_id,
                         'seller_id' => $item->penjual_id,
@@ -78,43 +76,37 @@ class OrderResource extends JsonResource
                         'harga_formatted' => 'Rp ' . number_format($item->harga, 0, ',', '.'),
                         'subtotal' => $item->subtotal,
                         'subtotal_formatted' => 'Rp ' . number_format($item->subtotal, 0, ',', '.'),
-                        'product' => $item->whenLoaded('product', function() use ($item) {
-                            return [
-                                'id' => $item->product->id,
-                                'nama' => $item->product->nama,
-                                'gambar' => $item->product->gambar,
-                                'jenis_ikan' => $item->product->jenis_ikan
-                            ];
-                        }),
-                        'seller' => $item->whenLoaded('seller', function() use ($item) {
-                            return [
-                                'id' => $item->seller->id,
-                                'name' => $item->seller->name
-                            ];
-                        })
                     ];
-                });
-            }),
-            
-            // Informasi pembayaran
-            'payments' => $this->whenLoaded('payments', function() {
-                return $this->payments->map(function($payment) {
-                    return [
-                        'id' => $payment->id,
-                        'amount' => $payment->amount,
-                        'amount_formatted' => 'Rp ' . number_format($payment->amount, 0, ',', '.'),
-                        'status' => $payment->status,
-                        'payment_method' => $payment->payment_method,
-                        'payment_date' => $payment->payment_date ? $payment->payment_date->format('Y-m-d H:i:s') : null,
-                        'payment_proof' => $payment->payment_proof,
-                        'created_at' => $payment->created_at->format('Y-m-d H:i:s')
-                    ];
+
+                    // PERBAIKAN: Cek relasi product secara manual
+                    if ($item->relationLoaded('product') && $item->product) {
+                        $itemData['product'] = [
+                            'id' => $item->product->id,
+                            'nama' => $item->product->nama,
+                            'gambar' => $item->product->gambar,
+                            'jenis_ikan' => $item->product->jenis_ikan
+                        ];
+                    } else {
+                        $itemData['product'] = null;
+                    }
+
+                    // PERBAIKAN: Cek relasi seller secara manual
+                    if ($item->relationLoaded('seller') && $item->seller) {
+                        $itemData['seller'] = [
+                            'id' => $item->seller->id,
+                            'name' => $item->seller->name
+                        ];
+                    } else {
+                        $itemData['seller'] = null;
+                    }
+
+                    return $itemData;
                 });
             }),
             
             'can_cancel' => in_array($this->status, ['menunggu', 'diproses']),
             'can_complete' => $this->status === 'dikirim',
-            'can_review' => $this->status === 'selesai' && !$this->hasReviewed(),
+            'can_review' => $this->status === 'selesai',
             
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s')
@@ -130,6 +122,7 @@ class OrderResource extends JsonResource
     {
         $labels = [
             'menunggu' => 'Menunggu Pembayaran',
+            'dibayar' => 'Dibayar',
             'diproses' => 'Sedang Diproses',
             'dikirim' => 'Dalam Pengiriman',
             'selesai' => 'Selesai',
@@ -148,9 +141,8 @@ class OrderResource extends JsonResource
     {
         $labels = [
             'menunggu' => 'Menunggu Pembayaran',
-            'diverifikasi' => 'Pembayaran Diverifikasi',
-            'ditolak' => 'Pembayaran Ditolak',
-            'dibatalkan' => 'Dibatalkan'
+            'dibayar' => 'Pembayaran Diterima',
+            'gagal' => 'Pembayaran Gagal'
         ];
         
         return $labels[$this->status_pembayaran] ?? $this->status_pembayaran;
@@ -171,28 +163,5 @@ class OrderResource extends JsonResource
         ];
         
         return $labels[$this->metode_pembayaran] ?? $this->metode_pembayaran;
-    }
-    
-    /**
-     * Check if user has reviewed this order.
-     *
-     * @return bool
-     */
-    private function hasReviewed()
-    {
-        if (!$this->orderItems->first()) {
-            return false;
-        }
-        
-        // Mencari apakah ada review dari user untuk produk dalam pesanan ini
-        $userId = $this->user_id;
-        $productIds = $this->orderItems->pluck('produk_id')->toArray();
-        
-        // Note: This assumes you have a Review model with user_id and product_id columns
-        $hasReview = \App\Models\Review::where('user_id', $userId)
-                                       ->whereIn('produk_id', $productIds)
-                                       ->exists();
-        
-        return $hasReview;
     }
 }
