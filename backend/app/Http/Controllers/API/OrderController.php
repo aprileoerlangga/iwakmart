@@ -369,7 +369,7 @@ class OrderController extends Controller
             
             // Update status
             $order->status = 'dibatalkan';
-            $order->status_pembayaran = 'dibatalkan';
+            $order->status_pembayaran = 'gagal';
             $order->save();
             
             // Kembalikan stok produk - PENTING: stok dikembalikan saat pesanan dibatalkan

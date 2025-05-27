@@ -54,12 +54,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/cart/{cartItem}', [CartController::class, 'removeFromCart']);
     Route::delete('/cart', [CartController::class, 'clearCart']);
     
-    // Orders
+    // Orders - PERBAIKAN ROUTES
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders/checkout', [OrderController::class, 'checkout']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::get('/orders/{order}/items', [OrderController::class, 'items']);
-    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancelOrder']);
+
+    // TAMBAHAN ROUTES YANG HILANG:
+    Route::put('/orders/{order}/cancel', [OrderController::class, 'cancelOrder']);
+    Route::put('/orders/{order}/complete', [OrderController::class, 'completeOrder']);
+    Route::put('/orders/{order}/status', [OrderController::class, 'updateOrderStatus']);
     
     // Reviews
     Route::post('/reviews', [ReviewController::class, 'store']);
@@ -96,9 +100,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/seller/products/{product}', [ProductController::class, 'update']);
         Route::delete('/seller/products/{product}', [ProductController::class, 'destroy']);
         
-        // Orders
-        Route::get('/seller/orders', [OrderController::class, 'sellerOrders']);
-        Route::put('/seller/orders/{order}/status', [OrderController::class, 'updateStatus']);
+        // Orders - PERBAIKAN UNTUK SELLER
+        Route::get('/seller/orders', [OrderController::class, 'index']); // Gunakan method yang sama
+        Route::put('/seller/orders/{order}/status', [OrderController::class, 'updateOrderStatus']);
         
         // Reviews
         Route::post('/reviews/{review}/reply', [ReviewController::class, 'reply']);
